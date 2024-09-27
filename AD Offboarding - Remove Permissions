@@ -1,0 +1,49 @@
+# Created by Kelvin Korssen, this script disables users and removes all MemberOf groups, State, Company and adds a termination date in the describtion field.
+# Make sure to enter your own value for $disabledUserOU
+
+# Function to check if the script is running with elevated privileges
+function Test-Administrator {
+    $currentUser = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    return $currentUser.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
+}
+
+# Import the Active Directory module
+Import-Module ActiveDirectory
+
+# Define the predefined OU for disabled users (update this value)
+$disabledUserOU = "OU=DOMAIN - Disabled Users,DC=,DC="
+
+# Prompt for user input
+$userName = Read-Host "Enter the user's SamAccountName"
+$terminationDate = Read-Host "Enter the termination/offboarding date (MM/dd/yyyy)"
+
+# Get the AD user object
+$user = Get-ADUser -Filter { SamAccountName -eq $userName } -Properties MemberOf, State, Company
+
+if ($user) {
+    # Disable the user account
+    Disable-ADAccount -Identity $user
+
+    # Update the description field with termination/offboarding date
+    $description = $user.Description + " | Termination Date: " + $terminationDate
+    Set-ADUser -Identity $user -Description $description
+
+    # Remove the user from all groups
+    foreach ($group in $user.MemberOf) {
+        Remove-ADGroupMember -Identity $group -Members $user -Confirm:$false
+    }
+
+    # Clear the State/Province and Company fields
+    Set-ADUser -Identity $user -Clear State, Company
+
+    # Move the user to the predefined disabled user OU
+    Move-ADObject -Identity $user.DistinguishedName -TargetPath $disabledUserOU
+
+    # Prompt for user input to continue
+    Write-Host "What are you waiting for? Press a button!"
+    Read-Host
+
+    Write-Host "Pew Pew Pew!, the user $userName has been disabled, removed from all groups, moved to the disabled users OU, cleared State/Province and Company fields, and the termination date has been added to the description."
+} else {
+    Write-Host "User $userName not found in Active Directory."
+}
