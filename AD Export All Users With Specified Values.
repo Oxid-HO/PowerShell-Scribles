@@ -1,0 +1,19 @@
+# Get all enabled AD users with specific properties (Full Name, Description, Department, Company, Job Title)
+$Users = Get-ADUser -Filter {Enabled -eq $true} -Property DisplayName, Description, Department, Company, Title
+
+# Create a custom object for each user with the necessary fields
+$Results = foreach ($User in $Users) {
+    [PSCustomObject]@{
+        "Full Name"   = $User.DisplayName
+        "Description" = $User.Description
+        "Department"  = $User.Department
+        "Company"     = $User.Company
+        "Job Title"   = $User.Title
+    }
+}
+
+# Specify the output CSV file path
+$CsvFilePath = "$env:USERPROFILE\Desktop\ADUsersReportincludingJobTitle.csv"
+
+# Export the results to CSV
+$Results | Export-Csv -Path $CsvFilePath -NoTypeInformation -Encoding UTF8
