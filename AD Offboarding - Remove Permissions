@@ -15,7 +15,7 @@ $disabledUserOU = "OU=DOMAIN - Disabled Users,DC=,DC="
 
 # Prompt for user input
 $userName = Read-Host "Enter the user's SamAccountName"
-$terminationDate = Read-Host "Enter the termination/offboarding date (MM/dd/yyyy)"
+$terminationDate = Read-Host "Enter the termination/offboarding date (MM/DD/YYYY)"
 
 # Get the AD user object
 $user = Get-ADUser -Filter { SamAccountName -eq $userName } -Properties MemberOf, State, Company
