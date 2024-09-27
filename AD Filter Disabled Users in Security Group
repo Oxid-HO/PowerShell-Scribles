@@ -1,0 +1,19 @@
+# Import the Active Directory module
+Import-Module ActiveDirectory
+
+# Define the security group name
+$groupName = "YourSecurityGroupName"
+
+# Get the members of the security group
+$groupMembers = Get-ADGroupMember -Identity $groupName -Recursive | Where-Object { $_.objectClass -eq 'user' }
+
+# Filter out disabled users
+$disabledUsers = $groupMembers | Where-Object {
+    (Get-ADUser -Identity $_.SamAccountName -Properties Enabled).Enabled -eq $false
+}
+
+# Display the disabled users
+$disabledUsers | Select-Object Name, SamAccountName, Enabled | Format-Table -AutoSize
+
+# Optional: Export the disabled users to a CSV file
+$disabledUsers | Select-Object Name, SamAccountName, Enabled | Export-Csv -Path "DisabledUsers.csv" -NoTypeInformation
