@@ -1,0 +1,80 @@
+param (
+    [PARAMETER(Mandatory=$TRUE,ValueFromPipeline=$FALSE)]
+    [string]$Mailbox,
+    [PARAMETER(Mandatory=$TRUE,ValueFromPipeline=$FALSE)]
+    [string]$StartDate,
+    [PARAMETER(Mandatory=$TRUE,ValueFromPipeline=$FALSE)]
+    [string]$EndDate,
+    [PARAMETER(Mandatory=$FALSE,ValueFromPipeline=$FALSE)]
+    [string]$Subject,
+    [PARAMETER(Mandatory=$False,ValueFromPipeline=$FALSE)]
+    [switch]$IncludeFolderBind,
+    [PARAMETER(Mandatory=$False,ValueFromPipeline=$FALSE)]
+    [switch]$ReturnObject
+)
+
+BEGIN {
+    [string[]]$LogParameters = @('Operation', 'LogonUserDisplayName', 'LastAccessed', 'DestFolderPathName', 'FolderPathName', 'ClientInfoString', 'ClientIPAddress', 'ClientMachineName', 'ClientProcessName', 'ClientVersion', 'LogonType', 'MailboxResolvedOwnerName', 'OperationResult')
+
+    # Ensure the output directory exists
+    $OutputDirectory = "C:\Reporting"
+    if (-not (Test-Path -Path $OutputDirectory)) {
+        New-Item -Path $OutputDirectory -ItemType Directory | Out-Null
+    }
+}
+
+END {
+    if ($ReturnObject) {
+        return $SearchResults
+    }
+    elseif ($SearchResults.count -gt 0) {
+        $Date = get-date -Format yyMMdd_HHmmss
+        $OutFileName = "$OutputDirectory\AuditLogResults$Date.csv"
+        Write-Host
+        Write-Host -ForegroundColor Green "Posting results to file: $OutFileName"
+        $SearchResults | Export-Csv $OutFileName -NoTypeInformation -Encoding UTF8
+    }
+}
+
+PROCESS {
+    Write-Host -ForegroundColor Green 'Searching Mailbox Audit Logs...'
+    $SearchResults = @(Search-MailboxAuditLog $Mailbox -StartDate $StartDate -EndDate $EndDate -LogonTypes Owner, Admin, Delegate -ShowDetails -ResultSize 50000)
+    Write-Host -ForegroundColor Green "$($SearchResults.Count) Total entries Found"
+    
+    if (-not $IncludeFolderBind) {
+        Write-Host -ForegroundColor Green 'Removing FolderBind operations.'
+        $SearchResults = @($SearchResults | Where-Object { $_.Operation -notlike 'FolderBind' })
+        Write-Host -ForegroundColor Green "Filtered to $($SearchResults.Count) Entries"
+    }
+
+    $SearchResults = @($SearchResults | Select-Object ($LogParameters + @{
+        Name = 'Subject'; 
+        Expression = {
+            if (($_.SourceItems.Count -eq 0) -or ($_.SourceItems.Count -eq $null)) {
+                $_.ItemSubject
+            } else {
+                ($_.SourceItems[0].SourceItemSubject).TrimStart(' ')
+            }
+        }
+    },
+    @{
+        Name = 'CrossMailboxOp'; 
+        Expression = {
+            if (@('SendAs', 'Create', 'Update') -contains $_.Operation) {
+                'N/A'
+            } else {
+                $_.CrossMailboxOperation
+            }
+        }
+    }))
+
+    $LogParameters = @('Subject') + $LogParameters + @('CrossMailboxOp')
+
+    if ($Subject -ne '' -and $Subject -ne $null) {
+        Write-Host -ForegroundColor Green "Searching for Subject: $Subject"
+        $SearchResults = @($SearchResults | Where-Object { $_.Subject -match $Subject -or $_.Subject -eq $Subject })
+        Write-Host -ForegroundColor Green "Filtered to $($SearchResults.Count) Entries"
+    }
+
+    $SearchResults = @($SearchResults | Select-Object $LogParameters)
+}
