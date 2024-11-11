@@ -1,4 +1,4 @@
-# Created by Kelvin Korssen, this script disables the user and removes all MemberOf groups, State, Company and adds a termination date in the describtion field.
+# Created by Kelvin Korssen, this script disables the user and removes all MemberOf groups, State, Company and adds a termination date in the description field.
 # Make sure to enter your own value for $disabledUserOU
 
 # Function to check if the script is running with elevated privileges
